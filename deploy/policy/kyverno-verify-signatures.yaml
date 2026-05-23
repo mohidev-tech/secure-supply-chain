@@ -1,0 +1,64 @@
+# The admission gate. Together with the trusted-registry policy from
+# devsecops-platform, this completes the SLSA Build L3 story:
+#   - publish:  release.yml signs every image keyless via OIDC + Rekor
+#   - deploy:   this policy refuses to admit anything that doesn't verify
+#
+# The certificate-identity is the workflow filename + branch — meaning an
+# attacker who steals a GHCR token still cannot get a deploy through unless
+# they can ALSO compromise the workflow file in main (which would show up in
+# the next git pull).
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-signatures
+  annotations:
+    policies.kyverno.io/title: Cosign-verify images from this org
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/subject: Pod
+spec:
+  validationFailureAction: Enforce
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: keyless-verify-signature
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [app, default]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/mohidev-tech/secure-supply-chain-app*"
+          required: true
+          attestors:
+            - count: 1
+              entries:
+                - keyless:
+                    subject: "https://github.com/mohidev-tech/secure-supply-chain/.github/workflows/release.yml@refs/heads/main"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev
+
+    - name: keyless-verify-sbom-attestation
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [app, default]
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/mohidev-tech/secure-supply-chain-app*"
+          required: true
+          attestations:
+            - type: https://spdx.dev/Document
+              attestors:
+                - entries:
+                    - keyless:
+                        subject: "https://github.com/mohidev-tech/secure-supply-chain/.github/workflows/release.yml@refs/heads/main"
+                        issuer: "https://token.actions.githubusercontent.com"
+                        rekor:
+                          url: https://rekor.sigstore.dev
+              conditions:
+                - all:
+                    - key: "{{ creationInfo.creators[0] }}"
+                      operator: NotEquals
+                      value: ""

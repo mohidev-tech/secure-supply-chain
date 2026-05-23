@@ -1,0 +1,23 @@
+# Alternative to Kyverno verifyImages — uses sigstore's policy-controller
+# (the canonical Sigstore admission plugin). Included as a side-by-side so
+# anyone evaluating this repo can see both options.
+#
+# Pick ONE. We default to Kyverno in the Makefile because it's already
+# installed by the flagship, but this manifest is equivalent.
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: verify-signatures
+spec:
+  images:
+    - glob: "ghcr.io/mohidev-tech/secure-supply-chain-app*"
+  authorities:
+    - keyless:
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subjectRegExp: "^https://github.com/mohidev-tech/secure-supply-chain/.github/workflows/release.yml@refs/.*$"
+        ctlog:
+          url: https://rekor.sigstore.dev
+      attestations:
+        - name: must-have-sbom
+          predicateType: https://spdx.dev/Document

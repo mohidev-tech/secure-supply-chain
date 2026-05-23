@@ -1,0 +1,24 @@
+image:
+  repository: ghcr.io/mohidev-tech/secure-supply-chain-app
+  # Pin by DIGEST, not by tag — the cosign signature is over the digest, and
+  # admission verification is the digest's last line of defense. Tags are
+  # mutable; digests are not.
+  digest: ""                # populated at deploy time: $(crane digest IMAGE:TAG)
+  tag: "main"               # fallback when digest is empty (dev only)
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources:
+  requests: { cpu: 25m, memory: 32Mi }
+  limits:   { cpu: 100m, memory: 64Mi }
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault

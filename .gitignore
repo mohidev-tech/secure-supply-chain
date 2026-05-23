@@ -1,0 +1,11 @@
+bin/
+dist/
+*.exe
+*.test
+*.out
+coverage.*
+*.sarif
+sbom.*.json
+.idea/
+.vscode/
+.DS_Store

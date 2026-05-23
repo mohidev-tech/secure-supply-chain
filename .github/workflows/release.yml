@@ -51,7 +51,7 @@ jobs:
           govulncheck ./...
 
       - name: trivy fs (SCA — broader scan, fail on CRITICAL/HIGH)
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.30.0
         with:
           scan-type: fs
           scan-ref: ./app
@@ -191,7 +191,7 @@ jobs:
             "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
       - name: Trivy scan the published image
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@v0.30.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.release.outputs.digest }}
           severity: CRITICAL,HIGH

@@ -132,12 +132,13 @@ jobs:
             -o cyclonedx-json=sbom.cyclonedx.json
 
       - name: Cosign sign (keyless, OIDC)
+        # Sign once by DIGEST — the signature covers the image content,
+        # so it's valid for every tag that resolves to this digest (main,
+        # sha-..., any semver tag in this run).
         env:
           COSIGN_EXPERIMENTAL: "1"
-        run: |
-          for tag in ${{ steps.meta.outputs.tags }}; do
-            cosign sign --yes "${tag}@${{ steps.build.outputs.digest }}"
-          done
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE"
 
       - name: Cosign attest SBOM
         env:

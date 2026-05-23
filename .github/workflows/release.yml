@@ -164,13 +164,28 @@ jobs:
     needs: release
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # Cap each verify step's runtime — past runs hung indefinitely on
+    # Trivy's registry pull. We'd rather fail fast than burn a runner.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Log in to GHCR for the pull
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Verify signature
+        timeout-minutes: 3
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
@@ -181,6 +196,7 @@ jobs:
             "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
       - name: Verify SBOM attestation
+        timeout-minutes: 3
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
@@ -192,9 +208,15 @@ jobs:
             "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
 
       - name: Trivy scan the published image
+        timeout-minutes: 5
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.release.outputs.digest }}
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+        env:
+          # Honor GITHUB_TOKEN for the GHCR pull — without this, Trivy may
+          # exceed the unauthenticated pull-rate limit and hang on retry.
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}

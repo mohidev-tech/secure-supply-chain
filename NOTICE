@@ -1,0 +1,35 @@
+secure-supply-chain
+Copyright 2026 mohidev-tech
+
+This product includes software developed at mohidev-tech (https://github.com/mohidev-tech).
+
+------------------------------------------------------------------------
+Third-party software referenced or invoked at build/deploy time
+------------------------------------------------------------------------
+
+Application: Go standard library only — BSD-3-Clause.
+
+CI tooling (used in .github/workflows/release.yml):
+
+* sigstore/cosign-installer       Apache License 2.0  https://github.com/sigstore/cosign
+* anchore/sbom-action / syft      Apache License 2.0  https://github.com/anchore/syft
+* aquasecurity/trivy-action       Apache License 2.0  https://github.com/aquasecurity/trivy
+* securego/gosec                  Apache License 2.0  https://github.com/securecodewarrior/gosec
+* golang.org/x/vuln (govulncheck) BSD-3-Clause        https://golang.org/x/vuln
+* docker/build-push-action        Apache License 2.0
+* actions/attest-build-provenance Apache License 2.0
+* github/codeql-action            MIT License
+
+Runtime verification (admission policies):
+
+* Kyverno                         Apache License 2.0  https://kyverno.io/
+* Sigstore policy-controller      Apache License 2.0  https://docs.sigstore.dev/policy-controller/
+
+Public-good infrastructure relied on:
+
+* Sigstore Fulcio  (free, public good — https://fulcio.sigstore.dev)
+* Sigstore Rekor   (free, public good — https://rekor.sigstore.dev)
+
+Base image:
+
+* gcr.io/distroless/static-debian12:nonroot   Apache License 2.0

@@ -157,35 +157,38 @@ jobs:
           push-to-registry: true
 
   # ─────────────────────────────────────────────────────────────────────────
-  # Self-verify — proves the chain works end to end. Pulls what we just
-  # pushed and runs the same cosign verify the admission controller would.
+  # Self-verify the signature on what we just pushed.
+  #
+  # Scope is deliberately narrow: one cosign verify call against the digest,
+  # checking the certificate-identity matches THIS workflow file on the
+  # repo's default branch. This is exactly what an admission controller
+  # would do at deploy time.
+  #
+  # What we DON'T do here (intentional):
+  #   - verify-attestation on the SBOM: the release job already wrote the
+  #     attestation; re-pulling it adds Sigstore-public-good-infra latency
+  #     and has historically hung in CI (cosign's inner RPCs don't honor
+  #     Actions' step-level timeout reliably).
+  #   - Trivy re-scan of the published image: static-analysis already gates
+  #     the build on Trivy fs; layer-cache regressions are catchable but
+  #     don't belong in the signing-pipeline's critical path.
+  # Manual equivalents live in scripts/verify.sh and scripts/download-sbom.sh.
   # ─────────────────────────────────────────────────────────────────────────
   verify:
     needs: release
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # Cap each verify step's runtime — past runs hung indefinitely on
-    # Trivy's registry pull. We'd rather fail fast than burn a runner.
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
       contents: read
       packages: read
       id-token: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Log in to GHCR for the pull
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
-
       - name: Verify signature
-        timeout-minutes: 3
+        timeout-minutes: 2
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
@@ -194,37 +197,3 @@ jobs:
             --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/" \
             --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
             "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
-
-      # The SBOM attestation verify and re-scan-on-published-image are
-      # informational — the release job already proved the chain works
-      # by signing/attesting successfully. We run them with continue-on-error
-      # and explicit `timeout` wrappers because cosign's network calls
-      # don't always respect actions' step-level timeout (the hang happens
-      # in an inner Sigstore/Rekor RPC).
-      - name: Verify SBOM attestation
-        continue-on-error: true
-        env:
-          COSIGN_EXPERIMENTAL: "1"
-        run: |
-          DIGEST="${{ needs.release.outputs.digest }}"
-          timeout 90s cosign verify-attestation \
-            --type spdxjson \
-            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}" \
-            || echo "::warning::SBOM attestation verify timed out — release job confirms the attestation was published; this is a self-check redundancy."
-
-      - name: Trivy scan the published image
-        continue-on-error: true
-        timeout-minutes: 5
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.release.outputs.digest }}
-          severity: CRITICAL,HIGH
-          exit-code: "0"          # informational — Trivy in static-analysis already gates the build
-          ignore-unfixed: true
-        env:
-          # Honor GITHUB_TOKEN for the GHCR pull — without this, Trivy may
-          # exceed the unauthenticated pull-rate limit and hang on retry.
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
